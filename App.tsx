@@ -21,7 +21,18 @@ const PRAISE_MESSAGES = [
 ];
 
 const App: React.FC = () => {
-  const [level, setLevel] = useState(1);
+  // Initialize level from localStorage if available
+  const [level, setLevel] = useState(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const saved = localStorage.getItem('meow_parking_level');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        return !isNaN(parsed) && parsed > 0 ? parsed : 1;
+      }
+    }
+    return 1;
+  });
+
   const [cats, setCats] = useState<CatEntity[]>([]);
   const [gridSize, setGridSize] = useState(10);
   const [gameState, setGameState] = useState<GameState>(GameState.START_MENU);
@@ -46,6 +57,13 @@ const App: React.FC = () => {
   // Hint System State
   const [hintCatId, setHintCatId] = useState<string | null>(null);
   const [interactionTrigger, setInteractionTrigger] = useState(0); // Used to reset hint timer
+
+  // Save level to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem('meow_parking_level', level.toString());
+    }
+  }, [level]);
 
   // --- TELEGRAM INIT ---
   useEffect(() => {
@@ -387,15 +405,9 @@ const App: React.FC = () => {
      return PRAISE_MESSAGES[Math.floor(Math.random() * PRAISE_MESSAGES.length)];
   }, [level, gameState]);
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-
   const handleStartGame = () => {
-    setLevel(1);
-    startLevel(1);
+    // Start from the current persisted level instead of resetting to 1
+    startLevel(level);
     if (audioRef.current && isSoundEnabled && audioRef.current.paused) {
       audioRef.current.play().catch(() => {});
     }
@@ -447,7 +459,7 @@ const App: React.FC = () => {
                 className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl font-bold text-xl shadow-lg shadow-green-300 transform transition hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
               >
                 <Play fill="currentColor" />
-                Play Now
+                Play Now {level > 1 && <span className="text-sm opacity-80">(Lvl {level})</span>}
               </button>
 
               <div className="mt-6 flex gap-4">
@@ -460,7 +472,7 @@ const App: React.FC = () => {
               </div>
            </div>
            <div className="absolute bottom-8 text-green-800/60 font-bold text-sm">
-             v1.2.5
+             v1.2.6
            </div>
         </div>
       )}
@@ -648,22 +660,22 @@ const App: React.FC = () => {
              </h2>
 
              {gameState === GameState.WON && (
-               <div className="flex flex-col gap-1 mb-4">
+               <div className="flex flex-col gap-1 mb-6">
                  <div className="text-xl font-bold text-purple-600 animate-pulse">
                     {encouragingMessage}
                  </div>
                  <div className="inline-flex items-center justify-center gap-2 text-slate-500 bg-slate-100 rounded-full px-4 py-1 mx-auto mt-2">
                     <Clock size={16} />
-                    <span className="font-mono font-bold">{formatTime(levelDuration)}</span>
+                    <span className="font-bold text-lg">{Math.floor(levelDuration)}s</span>
                  </div>
                </div>
              )}
              
-             <p className="text-slate-600 mb-6 text-sm">
-                {gameState === GameState.WON 
-                  ? "Ready for the next challenge?" 
-                  : "The bomb cat ran out of time!"}
-             </p>
+             {gameState === GameState.LOST && (
+                <p className="text-slate-600 mb-6 text-sm">
+                   The bomb cat ran out of time!
+                </p>
+             )}
              
              <button
                 onClick={() => {
